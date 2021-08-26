@@ -45,4 +45,4 @@ type
     ttype*: TokenType
     lexeme*: string
     # literal: object
-    # line*: int
+    line*: int

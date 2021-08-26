@@ -1,8 +1,5 @@
-import token
-
-func tail(s: string): string = return if s.len == 0: "" else: s[1..s.len-1]
-func tail(s: string, start: int): string = return if s.len == 0 and s.len > start: "" else: s[start..s.len-1]
-  
+import token, util
+ 
 func scanNumber(s: string): string =
   var dotSeen = false
   for c in s:
@@ -15,11 +12,14 @@ func scanNumber(s: string): string =
       result = result & $c
     else: return
 
-func scanString(s: string): string =
-  result = $s[0]
+func scanString(s: string): (string, int) =
+  var str = $s[0]
+  var lines = 0
   for c in s.tail:
-    result = result & $c
+    str = str & $c
+    if c == '\n': lines += 1
     if c == '"': break
+  return (str, lines)
 
 func scanIdent(s: string): string =
   result = $s[0]
@@ -35,43 +35,50 @@ func scanComment(s: string): string =
     result = result & $c
 
 # tokenize() yields token strings according to the lexing rules
-iterator tokenize(src: string): string =
+iterator tokenize(src: string): (string, int) =
   var current = 0
+  var line = 1
   while current < src.len:
     case src[current]
-    of ' ', '\t', '\n': current += 1 # whitespace
-    of '('..'/', ':'..'>', '{', '}', '!':  # single-char
-      if current < src.len - 1 and src[current+1] == '=': # two-char (>=, <=, !=, ==)
-        case src[current] 
-        of '!', '<', '>', '=': 
-          yield src[current..current+1]
-          current += 1
-        else: yield $src[current]
-      else: yield $src[current]
+    of ' ', '\t': current += 1 # whitespace
+    of '\n':
       current += 1
+      line += 1
+    of '('..'/', ':'..'>', '{', '}', '!':  # single-char
+      # two-char (>=, <=, !=, ==)
+      if current < src.len - 1 and src[current] in ['!', '<', '>', '='] and src[current+1] == '=':
+        current += 2
+        yield (src[current-2..current-1], line)
+      else: 
+        current += 1
+        yield ($src[current-1], line)
     of '0'..'9': # numbers
       let n = scanNumber src.tail(current)
       current += n.len
-      yield n
+      yield (n, line)
     of 'a'..'z', 'A'..'Z', '_': # identifiers
       let i = scanIdent src.tail(current)
       current += i.len
-      yield i
+      yield (i, line)
     of '"': # strings
-      let s = scanString src.tail(current)
+      let (s, lines) = scanString src.tail(current)
+      line += lines
       current += s.len
-      yield s
+      yield (s, line)
     of '#': # comments
       let com = scanComment src.tail(current)
       current += com.len
-      yield com
-    else: current += 1
+      line += 1
+      yield (com, line)
+    else: 
+      echo "Warning: unexpected character \"" & $src[current] & "\" on line " & $line
+      current += 1
 
 # lex() matches the token strings from tokenize() to their corresponding token types,
 # returning a seq of Token objects
-func lex*(src: string): seq[Token] =
-  for t in tokenize src:
-    var tkn: TokenType = case t:
+proc lex*(src: string): seq[Token] =
+  for tkn, line in tokenize src:
+    var tkntype: TokenType = case tkn
     of "(": ttLeftParen
     of ")": ttRightParen
     of "{": ttLeftBrace
@@ -107,31 +114,8 @@ func lex*(src: string): seq[Token] =
     of "true": ttTrue
     of "var": ttVar
     of "while": ttWhile
-    elif t[0] == '"': ttString
-    elif t[0] in '0'..'9': ttNumber
+    elif tkn[0] == '"': ttString
+    elif tkn[0] in '0'..'9': ttNumber
     else: ttIdentifier
 
-    result = result & Token(ttype: tkn, lexeme: t)
-
-# some pseudocode for testing
-var pseudocode: string =
-  """
-var abc = 123;
-
-if(abc != 456 and true != false) {
-  do.something()
-}else{
-  do.somethingElse()
-}
-
-fun double(x) = {
-  return x * 2
-}
-
-print double(7)
-"""
-
-var tokens = lex pseudocode
-
-for t in tokens:
-  echo $t.ttype & ": " & t.lexeme
+    result = result & Token(ttype: tkntype, lexeme: tkn, line: line)
