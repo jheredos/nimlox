@@ -1,4 +1,4 @@
-import token, ast
+import ast
 
 # char2digit converts a number char to a digit
 func char2digit(c: char): int =

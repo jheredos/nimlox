@@ -1,4 +1,4 @@
-import token, ast, util
+import token, ast, util, errors
 
 # expression 	-> equality ;
 # equality 		-> comparison ( ( "!=" | "==" ) comparison )* ;
@@ -9,7 +9,7 @@ import token, ast, util
 # primary			-> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 
 # parse converts a sequence of Tokens to an Abstract Syntax Tree using recursive descent
-proc parse*(tokens: seq[Token]): Node =
+proc parse*(tokens: seq[Token], errs: var ErrorLog): Node =
   var i = 0
 
   proc match(ttypes: varargs[TokenType]): bool =
@@ -60,11 +60,17 @@ proc parse*(tokens: seq[Token]): Node =
     elif match ttTrue: return Node(ntype: ntBool, boolVal: true)
     elif match ttNil: return Node(ntype: ntNil)
     elif match ttNumber: return Node(ntype: ntNumber, numVal: str2float tokens[i-1].lexeme)
+    elif match ttString: 
+      return Node(ntype: ntString, strVal: tokens[i-1].lexeme[1..tokens[i-1].lexeme.len-2]) # trim quotes
     elif match ttLeftParen: 
       result = Node(ntype: ntGroup, exp: expression())
       discard match ttRightParen
     else:
-      echo "Error: unexpected token \"" & tokens[i].lexeme & "\" on line " & $tokens[i].line
+      # Running into some weird issue about "violating memory safety" here. Not sure why it
+      # only affects here and not in the lexer or interpreter.
+      # errs.newError(parsingErr, "Unexpected token \"" & tokens[i].lexeme & "\"", tokens[i].line)
       return Node(ntype: ntNil)
+
+  
 
   return Node(ntype: ntGroup, exp: expression())

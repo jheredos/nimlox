@@ -1,4 +1,4 @@
-import token, util
+import token, util, errors
  
 func scanNumber(s: string): string =
   var dotSeen = false
@@ -35,7 +35,7 @@ func scanComment(s: string): string =
     result = result & $c
 
 # tokenize() yields token strings according to the lexing rules
-iterator tokenize(src: string): (string, int) =
+iterator tokenize(src: string, errs: var ErrorLog): (string, int) =
   var current = 0
   var line = 1
   while current < src.len:
@@ -71,51 +71,55 @@ iterator tokenize(src: string): (string, int) =
       line += 1
       yield (com, line)
     else: 
-      echo "Warning: unexpected character \"" & $src[current] & "\" on line " & $line
+      errs.newError(lexingErr, "Unexpected character \"" & src[current] & "\"", line)
       current += 1
 
 # lex() matches the token strings from tokenize() to their corresponding token types,
 # returning a seq of Token objects
-proc lex*(src: string): seq[Token] =
-  for tkn, line in tokenize src:
-    var tkntype: TokenType = case tkn
-    of "(": ttLeftParen
-    of ")": ttRightParen
-    of "{": ttLeftBrace
-    of "}": ttRightBrace
-    of ",": ttComma
-    of ".": ttDot
-    of "-": ttMinus
-    of "+": ttPlus
-    of ";": ttSemicolon
-    of "/": ttSlash
-    of "*": ttStar
-    of "!": ttBang
-    of "!=": ttBangEqual
-    of "=": ttEqual
-    of "==": ttEqualEqual
-    of ">": ttGreater
-    of ">=": ttGreaterEqual
-    of "<": ttLess
-    of "<=": ttLessEqual
-    of "and": ttAnd
-    of "class": ttClass
-    of "else": ttElse
-    of "false": ttFalse
-    of "fun": ttFun
-    of "for": ttFor
-    of "if": ttIf
-    of "nil": ttNil
-    of "or": ttOr
-    of "print": ttPrint
-    of "return": ttReturn
-    of "super": ttSuper
-    of "this": ttThis
-    of "true": ttTrue
-    of "var": ttVar
-    of "while": ttWhile
-    elif tkn[0] == '"': ttString
-    elif tkn[0] in '0'..'9': ttNumber
-    else: ttIdentifier
+proc lex*(src: string, errs: var ErrorLog): seq[Token] =
+  for tkn, line in tokenize(src, errs):
+    var tkntype: TokenType 
+    case tkn
+    of "(": tkntype = ttLeftParen
+    of ")": tkntype = ttRightParen
+    of "{": tkntype = ttLeftBrace
+    of "}": tkntype = ttRightBrace
+    of ",": tkntype = ttComma
+    of ".": tkntype = ttDot
+    of "-": tkntype = ttMinus
+    of "+": tkntype = ttPlus
+    of ";": tkntype = ttSemicolon
+    of "/": tkntype = ttSlash
+    of "*": tkntype = ttStar
+    of "!": tkntype = ttBang
+    of "!=": tkntype = ttBangEqual
+    of "=": tkntype = ttEqual
+    of "==": tkntype = ttEqualEqual
+    of ">": tkntype = ttGreater
+    of ">=": tkntype = ttGreaterEqual
+    of "<": tkntype = ttLess
+    of "<=": tkntype = ttLessEqual
+    of "and": tkntype = ttAnd
+    of "class": tkntype = ttClass
+    of "else": tkntype = ttElse
+    of "false": tkntype = ttFalse
+    of "fun": tkntype = ttFun
+    of "for": tkntype = ttFor
+    of "if": tkntype = ttIf
+    of "nil": tkntype = ttNil
+    of "or": tkntype = ttOr
+    of "print": tkntype = ttPrint
+    of "return": tkntype = ttReturn
+    of "super": tkntype = ttSuper
+    of "this": tkntype = ttThis
+    of "true": tkntype = ttTrue
+    of "var": tkntype = ttVar
+    of "while": tkntype = ttWhile
+    elif tkn[0] == '"': tkntype = ttString
+    elif tkn[0] in '0'..'9': tkntype = ttNumber
+    elif tkn[0] in 'a'..'z' or tkn[0] in 'A'..'Z': tkntype = ttIdentifier
+    else: 
+      errs.newError(lexingErr, "Unexpected token \"" & tkn & "\"", line)
+      tkntype = ttIdentifier
 
     result = result & Token(ttype: tkntype, lexeme: tkn, line: line)
