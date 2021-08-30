@@ -1,4 +1,4 @@
-import token, util, errors
+import lox, token, util
  
 func scanNumber(s: string): string =
   var dotSeen = false
@@ -35,7 +35,7 @@ func scanComment(s: string): string =
     result = result & $c
 
 # tokenize() yields token strings according to the lexing rules
-iterator tokenize(src: string, errs: var ErrorLog): (string, int) =
+iterator tokenize(lx: var Lox, src: string): (string, int) =
   var current = 0
   var line = 1
   while current < src.len:
@@ -71,13 +71,13 @@ iterator tokenize(src: string, errs: var ErrorLog): (string, int) =
       line += 1
       yield (com, line)
     else: 
-      errs.newError(lexingErr, "Unexpected character \"" & src[current] & "\"", line)
+      lx.newError(lexingErr, "Unexpected character \"" & src[current] & "\"", line)
       current += 1
 
 # lex() matches the token strings from tokenize() to their corresponding token types,
 # returning a seq of Token objects
-proc lex*(src: string, errs: var ErrorLog): seq[Token] =
-  for tkn, line in tokenize(src, errs):
+proc lex*(lx: var Lox, src: string): seq[Token] =
+  for tkn, line in lx.tokenize(src):
     var tkntype: TokenType 
     case tkn
     of "(": tkntype = ttLeftParen
@@ -119,7 +119,7 @@ proc lex*(src: string, errs: var ErrorLog): seq[Token] =
     elif tkn[0] in '0'..'9': tkntype = ttNumber
     elif tkn[0] in 'a'..'z' or tkn[0] in 'A'..'Z': tkntype = ttIdentifier
     else: 
-      errs.newError(lexingErr, "Unexpected token \"" & tkn & "\"", line)
+      lx.newError(lexingErr, "Unexpected token \"" & tkn & "\"", line)
       tkntype = ttIdentifier
 
     result = result & Token(ttype: tkntype, lexeme: tkn, line: line)

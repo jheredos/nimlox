@@ -42,6 +42,10 @@ func tree2str*(n: Node): string =
     $n.strVal
   of ntBool:
     $n.boolVal
+  of ntNil:
+    "nil"
   of ntGroup:
     n.exp.tree2str
   else: ""
+
+proc `|>`[T](f1, f2: T): T = f1(f2())

@@ -1,4 +1,9 @@
-import token, ast, util, errors
+import lox, token, ast, util
+
+# program     -> statement* EOF ;
+# statement   -> exprStmt | printStmt ;
+# exprStmt    -> expression ";" ;
+# printStmt   -> "print" expression ";" ;
 
 # expression 	-> equality ;
 # equality 		-> comparison ( ( "!=" | "==" ) comparison )* ;
@@ -9,8 +14,9 @@ import token, ast, util, errors
 # primary			-> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 
 # parse converts a sequence of Tokens to an Abstract Syntax Tree using recursive descent
-proc parse*(tokens: seq[Token], errs: var ErrorLog): Node =
+proc parse*(lx: var Lox, tokens: seq[Token]): Node =
   var i = 0
+  var statements: seq[Node]
 
   proc match(ttypes: varargs[TokenType]): bool =
     if i >= tokens.len: return false
@@ -20,12 +26,34 @@ proc parse*(tokens: seq[Token], errs: var ErrorLog): Node =
         return true
     return false
   
+  # forward declarations
+  proc statement(): Node
+  proc exprStmt(): Node
+  proc printStmt(): Node
+  proc expression(): Node
   proc equality(): Node
   proc comparison(): Node
   proc addition(): Node
   proc multiplication(): Node
   proc unary(): Node
   proc primary(): Node
+
+  proc statement(): Node =
+    if match ttPrint:
+      result = printStmt()
+    else:
+      result = exprStmt()
+
+  proc exprStmt(): Node =
+    result = expression()
+    if match ttSemicolon:
+      result = Node(ntype: ntExprStmt, exp: result) 
+      # Like ntGroup, this is just a wrapper for another node. May remove later.
+
+  proc printStmt(): Node = 
+    result = expression()
+    if match ttSemicolon:
+      result = Node(ntype: ntPrintStmt, printExp: result)
 
   proc expression(): Node = 
     result = equality()
@@ -68,9 +96,10 @@ proc parse*(tokens: seq[Token], errs: var ErrorLog): Node =
     else:
       # Running into some weird issue about "violating memory safety" here. Not sure why it
       # only affects here and not in the lexer or interpreter.
-      # errs.newError(parsingErr, "Unexpected token \"" & tokens[i].lexeme & "\"", tokens[i].line)
+      echo "Lexing error on line " & $tokens[i].line & "Unexpected token \"" & tokens[i].lexeme & "\""
       return Node(ntype: ntNil)
 
-  
+  while i < tokens.len:
+    statements.add(statement())
 
-  return Node(ntype: ntGroup, exp: expression())
+  return Node(ntype: ntProgram, stmts: statements)
